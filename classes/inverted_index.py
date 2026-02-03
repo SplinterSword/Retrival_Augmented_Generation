@@ -4,6 +4,7 @@ from utils.text_preprocessing import text_preprocessing
 from pathlib import Path
 import pickle
 import math
+from utils.constants import BM25_K1
 
 class InvertedIndex:
     """
@@ -36,6 +37,11 @@ class InvertedIndex:
 
         token = tokens[0]
         return self.term_frequency.get(doc_id, Counter()).get(token, 0)
+    
+    def get_bm25_tf(self, doc_id: int, term: str, k1: float = BM25_K1) -> float:
+        tf = self.get_tf(doc_id, term)
+        saturated_tf = (tf * (k1 + 1)) / (tf + k1)
+        return saturated_tf
     
     def get_idf(self, term: str) -> float:
         term_tokens = text_preprocessing(term)
