@@ -4,7 +4,7 @@ from utils.text_preprocessing import text_preprocessing
 from pathlib import Path
 import pickle
 import math
-from utils.constants import BM25_K1
+from utils.search_utils import BM25_K1, BM25_B
 
 class InvertedIndex:
     """
@@ -13,9 +13,14 @@ class InvertedIndex:
     index: dict[str, list[int]] = {}
     docmap: dict[int, str] = {}
     term_frequency: dict[int, Counter] = {}
+    doc_length: dict[int, int] = {}
+
+    def __init__(self):
+        self.doc_length = {}
     
     def __add_document(self, doc_id: int, text: str):
         tokens = text_preprocessing(text)
+        self.doc_length[doc_id] = len(tokens)
         for token in tokens:
             if token not in self.index:
                 self.index[token] = []
@@ -24,6 +29,11 @@ class InvertedIndex:
             if doc_id not in self.term_frequency:
                 self.term_frequency[doc_id] = Counter()
             self.term_frequency[doc_id][token] += 1
+
+    def __get_avg_doc_length(self) -> float:
+        if len(self.doc_length) == 0:
+            return 0.0
+        return sum(self.doc_length.values()) / len(self.doc_length)
     
     def get_documents(self, term: str) -> list[int]:
         term = term.lower()
@@ -38,9 +48,13 @@ class InvertedIndex:
         token = tokens[0]
         return self.term_frequency.get(doc_id, Counter()).get(token, 0)
     
-    def get_bm25_tf(self, doc_id: int, term: str, k1: float = BM25_K1) -> float:
+    def get_bm25_tf(self, doc_id: int, term: str, k1: float = BM25_K1, b: float = BM25_B) -> float:
         tf = self.get_tf(doc_id, term)
-        saturated_tf = (tf * (k1 + 1)) / (tf + k1)
+        doc_length = self.doc_length.get(doc_id, 0)
+        avg_doc_length = self.__get_avg_doc_length()
+        length_norm = 1 - b + b * (doc_length / avg_doc_length)
+
+        saturated_tf = (tf * (k1 + 1)) / (tf + k1 * length_norm)
         return saturated_tf
     
     def get_idf(self, term: str) -> float:
@@ -85,6 +99,8 @@ class InvertedIndex:
             pickle.dump(self.docmap, f)
         with open(cache_dir / 'term_frequency.pkl', 'wb') as f:
             pickle.dump(self.term_frequency, f)
+        with open(cache_dir / 'doc_length.pkl', 'wb') as f:
+            pickle.dump(self.doc_length, f)
 
     def load(self):
         BASE_DIR = Path(__file__).resolve().parent.parent
@@ -103,5 +119,7 @@ class InvertedIndex:
             self.docmap = pickle.load(f)
         with open(cache_dir / 'term_frequency.pkl', 'rb') as f:
             self.term_frequency = pickle.load(f)
+        with open(cache_dir / 'doc_length.pkl', 'rb') as f:
+            self.doc_length = pickle.load(f)
         print("Index loaded.")
 
