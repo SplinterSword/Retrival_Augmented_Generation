@@ -74,8 +74,8 @@ def main() -> None:
             total_doc_count = len(index.docmap)
             postings = index.index.get(term, [])
             term_match_doc_count = len(set(postings))
-            # BM25-style IDF
-            idf = math.log((total_doc_count - term_match_doc_count + 0.5) / (term_match_doc_count + 0.5))
+            
+            idf = math.log((total_doc_count + 1) / (term_match_doc_count + 1))
 
             print(f"Inverse document frequency of '{args.term}': {idf:.2f}")
             return idf
