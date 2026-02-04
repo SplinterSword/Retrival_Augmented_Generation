@@ -3,10 +3,13 @@ import numpy as np
 from pathlib import Path
 import json
 import sys
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 if str(BASE_DIR) not in sys.path:
     sys.path.append(str(BASE_DIR))
+
 from utils.semantic_search_utils.text_preprocessing import text_preprocessing
+from utils.semantic_search_utils.vector_operations import cosine_similarity
 
 class SemanticSearch:
     modal = None
@@ -67,6 +70,38 @@ class SemanticSearch:
             return self.embeddings
         else:
             return self.build_embeddings(documents)
+    
+    def search(self, query: str, limit: int) -> list[dict]:
+        BASE_DIR = Path(__file__).resolve().parent.parent.parent
+        cache_dir = BASE_DIR / 'cache'
+        cache_dir.mkdir(exist_ok=True)
+        embedding_file = cache_dir / 'movie_embeddings.npy'
+
+        if not embedding_file.exists():
+            raise ValueError("No embeddings loaded. Call `load_or_create_embeddings` first.")
+        
+        with open(embedding_file, 'rb') as f:
+            self.embeddings = np.load(f)
+        
+        query_embedding = self.generate_embedding(query)
+
+        similarity_scores = []
+
+        for i, embedding in enumerate(self.embeddings):
+            similarity = cosine_similarity(query_embedding, embedding)
+            similarity_scores.append((similarity, i+1))
+            
+        similarity_scores.sort(reverse=True)
+
+        results = []
+        
+        for i in range(limit):
+            score, doc_id = similarity_scores[i]
+            title = self.document_map[doc_id]["title"]
+            description = self.document_map[doc_id]["description"]
+            results.append({"score": score, "title": title, "description": description})
+        
+        return results
 
 
 def verify_modal():

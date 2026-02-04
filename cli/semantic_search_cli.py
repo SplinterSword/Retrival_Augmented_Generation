@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
+import json
 import argparse
-from lib.semantic_search import verify_modal, verify_embeddings, embed_query_text
+from pathlib import Path
+from lib.semantic_search import SemanticSearch, verify_modal, verify_embeddings, embed_query_text
 
 def main():
     parser = argparse.ArgumentParser(description="Semantic Search CLI")
@@ -20,6 +22,11 @@ def main():
 
     # Verify Embeddings
     subparsers.add_parser("verify_embeddings", help="Verify the embeddings")
+
+    # search
+    search_parser = subparsers.add_parser("search", help="Search for documents")
+    search_parser.add_argument("query", type=str, help="Query to search for")
+    search_parser.add_argument("--limit", type=int, default=5, help="Number of results to return")
     
     
     args = parser.parse_args()
@@ -49,6 +56,30 @@ def main():
             else:
                 print("Malformed embeddings are produced")
                 exit(1)
+
+        case "search":
+            semantic_search = SemanticSearch()
+
+            BASE_DIR = Path(__file__).resolve().parent.parent
+            data_dir = BASE_DIR / 'data'
+            data_file = data_dir / 'movies.json'
+
+            with open(data_file, 'r') as f:
+                data = json.load(f)
+
+            documents = data['movies']
+
+            embeddings = semantic_search.load_or_create_embeddings(documents)
+            if embeddings is None:
+                print("Failed to load or create embeddings")
+                exit(1)
+
+            results = semantic_search.search(args.query, args.limit)
+            for i, result in enumerate(results):
+                print(f"{i+1}. {result['title']} (score: {result['score']:.4f})")
+                print(f"   {result['description']}")
+            
+            return results
 
         case _:
             parser.print_help()
