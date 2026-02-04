@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import json
+import re
 import argparse
 from pathlib import Path
 from lib.semantic_search import SemanticSearch, verify_modal, verify_embeddings, embed_query_text
@@ -28,6 +29,12 @@ def main():
     chunk_parser.add_argument("text", type=str, help="Text to chunk")
     chunk_parser.add_argument("--chunk-size", type=int, default=10, help="Chunk size")
     chunk_parser.add_argument("--overlap", type=int, default=0, help="Overlap between chunks")
+
+    # Semantic Chunk
+    semantic_chunk_parser = subparsers.add_parser("semantic_chunk", help="Semantic chunk the documents")
+    semantic_chunk_parser.add_argument("text", type=str, help="Text to chunk")
+    semantic_chunk_parser.add_argument("--max-chunk-size", type=int, default=4, help="Max Chunk size")
+    semantic_chunk_parser.add_argument("--overlap", type=int, default=0, help="Overlap between chunks")
 
     # search
     search_parser = subparsers.add_parser("search", help="Search for documents")
@@ -76,6 +83,26 @@ def main():
             print(f"Chunking {total_char} characters")
             for i, chunk in enumerate(chunks):
                 print(f"{i+1}. {chunk}")
+            
+            return chunks
+
+        case "semantic_chunk":
+            splited_words = args.text.split()
+            total_char = len(splited_words)
+            splited_text = re.split(r'(?<=[.!?])\s+', args.text)
+            max_chunk_size = args.max_chunk_size
+            overlap = args.overlap
+            
+            chunks = []
+            
+            for sentence in splited_text:
+                words = sentence.split()
+                for i in range(0, len(words), max_chunk_size - overlap):
+                    chunks.append(' '.join(words[i:i+max_chunk_size]))
+
+            print(f"Semantically Chuncking {total_char} words")
+            for i in range(len(chunks)):
+                print(f"{i+1}. {chunks[i]} {chunks[i+1] if i+1 < len(chunks) else ''}")
             
             return chunks
 
