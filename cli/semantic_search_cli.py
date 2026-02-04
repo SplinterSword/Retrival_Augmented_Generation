@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-import json
 import re
+import json
 import argparse
 from pathlib import Path
-from lib.semantic_search import SemanticSearch, verify_modal, verify_embeddings, embed_query_text
+from lib.semantic_search import ChunkedSemanticSearch, SemanticSearch, verify_modal, verify_embeddings, embed_query_text
 
 def main():
     parser = argparse.ArgumentParser(description="Semantic Search CLI")
@@ -35,6 +35,9 @@ def main():
     semantic_chunk_parser.add_argument("text", type=str, help="Text to chunk")
     semantic_chunk_parser.add_argument("--max-chunk-size", type=int, default=4, help="Max Chunk size")
     semantic_chunk_parser.add_argument("--overlap", type=int, default=0, help="Overlap between chunks")
+
+    # Embed Chunks
+    subparsers.add_parser("embed_chunks", help="Embed the chunks")
 
     # search
     search_parser = subparsers.add_parser("search", help="Search for documents")
@@ -90,11 +93,11 @@ def main():
             splited_words = args.text.split()
             total_char = len(splited_words)
             splited_text = re.split(r'(?<=[.!?])\s+', args.text)
-            max_chunk_size = args.max_chunk_size
+            max_chunk_size = args.chunk_size
             overlap = args.overlap
-            
+                    
             chunks = []
-            
+                    
             for sentence in splited_text:
                 words = sentence.split()
                 for i in range(0, len(words), max_chunk_size - overlap):
@@ -105,6 +108,26 @@ def main():
                 print(f"{i+1}. {chunks[i]} {chunks[i+1] if i+1 < len(chunks) else ''}")
             
             return chunks
+
+        case "embed_chunks":
+            semantic_search = ChunkedSemanticSearch()
+
+            BASE_DIR = Path(__file__).resolve().parent.parent
+            data_dir = BASE_DIR / 'data'
+            data_file = data_dir / 'movies.json'
+
+            with open(data_file, 'r') as f:
+                data = json.load(f)
+
+            documents = data['movies']
+
+            embeddings = semantic_search.load_or_create_chunk_embeddings(documents)
+            if embeddings is None:
+                print("Failed to load or create embeddings")
+                exit(1)
+
+            print(f"Generated {len(embeddings)} chunked embeddings")
+            return embeddings
 
         case "search":
             semantic_search = SemanticSearch()

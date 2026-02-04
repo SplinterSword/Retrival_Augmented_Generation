@@ -10,6 +10,7 @@ if str(BASE_DIR) not in sys.path:
 
 from utils.semantic_search_utils.text_preprocessing import text_preprocessing
 from utils.semantic_search_utils.vector_operations import cosine_similarity
+from utils.semantic_search_utils.semantic_chunk import semantic_chunk
 
 class SemanticSearch:
     modal = None
@@ -17,8 +18,8 @@ class SemanticSearch:
     documents: list[dict] = None
     document_map: dict[int, dict] = {}
     
-    def __init__(self):
-        self.modal = SentenceTransformer('all-MiniLM-L6-v2')
+    def __init__(self, model_name = "all-MiniLM-L6-v2"):
+        self.modal = SentenceTransformer(model_name)
         self.embeddings = None
         self.documents = None
         self.document_map = {}
@@ -103,6 +104,78 @@ class SemanticSearch:
         
         return results
 
+class ChunkedSemanticSearch(SemanticSearch):
+    def __init__(self, model_name = "all-MiniLM-L6-v2") -> None:
+        super().__init__(model_name)
+        self.chunk_embeddings = None
+        self.chunk_metadata = None
+
+    def build_chunk_embeddings(self, documents: list[dict]):
+        BASE_DIR = Path(__file__).resolve().parent.parent.parent
+        cache_dir = BASE_DIR / 'cache'
+        cache_dir.mkdir(exist_ok=True)
+        chunk_embedding_file = cache_dir / 'chunk_embeddings.npy'
+        chunk_metadata_file = cache_dir / 'chunk_metadata.json'
+
+        self.documents = documents
+        for doc in documents:
+            self.document_map[doc["id"]] = doc
+        
+        chunks = []
+        chunk_meta = {}
+        
+        for doc in documents:
+            if doc["description"] == "":
+                continue
+            curr_chunks = semantic_chunk(doc["description"], 4, 1)
+            chunks.extend(curr_chunks)
+            for i, _ in enumerate(curr_chunks):
+                movie_idx = doc['id']
+                chunk_idx = i
+                total_curr_chunks = len(curr_chunks)
+                chunk_meta[len(chunks) - total_curr_chunks + i] = {
+                    "movie_idx": movie_idx,
+                    "chunk_idx": chunk_idx,
+                    "total_chunks": total_curr_chunks
+                }
+        
+        self.chunk_embeddings = self.modal.encode(chunks, show_progress_bar=True)
+        self.chunk_metadata = chunk_meta
+
+        with open(chunk_embedding_file, 'wb') as f:
+            np.save(f, self.chunk_embeddings)
+        
+        with open(chunk_metadata_file, 'w') as f:
+            json.dump({"chunks": chunk_meta, "total_chunks": len(chunks)}, f, indent=2)
+        
+        return chunks
+    
+
+    def load_or_create_chunk_embeddings(self, documents: list[dict]) -> np.ndarray:
+        BASE_DIR = Path(__file__).resolve().parent.parent.parent
+        cache_dir = BASE_DIR / 'cache'
+        cache_dir.mkdir(exist_ok=True)
+        chunk_embedding_file = cache_dir / 'chunk_embeddings.npy'
+        chunk_metadata_file = cache_dir / 'chunk_metadata.json'
+
+        self.documents = documents
+        for doc in documents:
+            self.document_map[doc["id"]] = doc
+
+        if cache_dir.exists() and chunk_embedding_file.exists() and chunk_metadata_file.exists():
+            with open(chunk_embedding_file, 'rb') as f:
+                self.chunk_embeddings = np.load(f)
+            
+            with open(chunk_metadata_file, 'r') as f:
+                metadata = json.load(f)
+                self.chunk_metadata = metadata["chunks"]
+            
+            if self.chunk_embeddings.shape[0] != len(documents):
+                print("Embeddings shape does not match documents length, rebuilding embeddings")
+                return self.build_chunk_embeddings(documents)
+            return self.chunk_embeddings
+        else:
+            return self.build_chunk_embeddings(documents)
 
 def verify_modal():
     try:
