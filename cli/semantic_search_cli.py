@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 
 import re
-import json
 import argparse
-from pathlib import Path
 from lib.semantic_search import ChunkedSemanticSearch, SemanticSearch, verify_modal, verify_embeddings, embed_query_text
+from utils.cli_utils.file_loading import load_movies
 
 def main():
     parser = argparse.ArgumentParser(description="Semantic Search CLI")
@@ -43,6 +42,11 @@ def main():
     search_parser = subparsers.add_parser("search", help="Search for documents")
     search_parser.add_argument("query", type=str, help="Query to search for")
     search_parser.add_argument("--limit", type=int, default=5, help="Number of results to return")
+
+    # search chunked
+    search_chunked_parser = subparsers.add_parser("search_chunked", help="Search for documents using chunked embeddings")
+    search_chunked_parser.add_argument("query", type=str, help="Query to search for")
+    search_chunked_parser.add_argument("--limit", type=int, default=5, help="Number of results to return")
     
     args = parser.parse_args()
 
@@ -112,14 +116,7 @@ def main():
         case "embed_chunks":
             semantic_search = ChunkedSemanticSearch()
 
-            BASE_DIR = Path(__file__).resolve().parent.parent
-            data_dir = BASE_DIR / 'data'
-            data_file = data_dir / 'movies.json'
-
-            with open(data_file, 'r') as f:
-                data = json.load(f)
-
-            documents = data['movies']
+            documents = load_movies()
 
             embeddings = semantic_search.load_or_create_chunk_embeddings(documents)
             if embeddings is None:
@@ -132,14 +129,7 @@ def main():
         case "search":
             semantic_search = SemanticSearch()
 
-            BASE_DIR = Path(__file__).resolve().parent.parent
-            data_dir = BASE_DIR / 'data'
-            data_file = data_dir / 'movies.json'
-
-            with open(data_file, 'r') as f:
-                data = json.load(f)
-
-            documents = data['movies']
+            documents = load_movies()
 
             embeddings = semantic_search.load_or_create_embeddings(documents)
             if embeddings is None:
@@ -150,6 +140,25 @@ def main():
             for i, result in enumerate(results):
                 print(f"{i+1}. {result['title']} (score: {result['score']:.4f})")
                 print(f"   {result['description']}")
+            
+            return results
+        
+        case "search_chunked":
+            query = args.query
+            limit = args.limit
+            chunk_semantic_search = ChunkedSemanticSearch()
+
+            documents = load_movies()
+            
+            embeddings = chunk_semantic_search.load_or_create_chunk_embeddings(documents)
+            if embeddings is None:
+                print("Failed to load or create embeddings")
+                exit(1)
+
+            results = chunk_semantic_search.search_chunk(query, limit)
+            for i, result in enumerate(results):
+                print(f"\n{i}. {result['title']} (score: {result['score']:.4f})")
+                print(f"   {result['document']}...")
             
             return results
 

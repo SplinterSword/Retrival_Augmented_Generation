@@ -1,3 +1,5 @@
+from importlib import metadata
+from unittest import result
 from sentence_transformers import SentenceTransformer
 import numpy as np
 from pathlib import Path
@@ -168,14 +170,48 @@ class ChunkedSemanticSearch(SemanticSearch):
             
             with open(chunk_metadata_file, 'r') as f:
                 metadata = json.load(f)
-                self.chunk_metadata = metadata["chunks"]
+                self.chunk_metadata = metadata
             
-            if self.chunk_embeddings.shape[0] != len(documents):
+            if self.chunk_embeddings.shape[0] != len(self.chunk_metadata["chunks"]):
                 print("Embeddings shape does not match documents length, rebuilding embeddings")
                 return self.build_chunk_embeddings(documents)
             return self.chunk_embeddings
         else:
             return self.build_chunk_embeddings(documents)
+    
+    def search_chunk(self, query: str, limit: int = 10) -> list[dict]:
+        query_embedding = self.generate_embedding(query)
+
+        chuck_scores: list[dict] = []
+        chunk_metadata = self.chunk_metadata["chunks"]
+
+        for i, embedding in enumerate(self.chunk_embeddings):
+            score = cosine_similarity(query_embedding, embedding)
+            curr_chunk_metadata = chunk_metadata[str(i)]
+            chunk_idx = curr_chunk_metadata["chunk_idx"]
+            movie_idx = curr_chunk_metadata["movie_idx"]
+            chuck_scores.append({"score": score, "chunk_idx": chunk_idx, "movie_idx": movie_idx})
+        
+        movie_score: dict[int, float] = {}
+        
+        for score in chuck_scores:
+            movie_idx = score["movie_idx"]
+            if movie_idx not in movie_score:
+                movie_score[movie_idx] = 0
+            if movie_score[movie_idx] < score["score"]:
+                movie_score[movie_idx] = score["score"]
+        
+        movie_score = sorted(movie_score.items(), key=lambda x: x[1], reverse=True)
+        
+        result: list[dict] = []
+
+        for i in range(limit):
+            movie_idx, score = movie_score[i]
+            movie = self.documents[movie_idx]
+            result.append({"id": movie["id"], "title": movie["title"], "document": movie["description"][:100], "score": round(score, 4)})
+        
+        return result
+        
 
 def verify_modal():
     try:
