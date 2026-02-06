@@ -97,7 +97,7 @@ def main():
             splited_words = args.text.split()
             total_char = len(splited_words)
             splited_text = re.split(r'(?<=[.!?])\s+', args.text)
-            max_chunk_size = args.chunk_size
+            max_chunk_size = args.max_chunk_size
             overlap = args.overlap
                     
             chunks = []

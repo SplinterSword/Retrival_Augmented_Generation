@@ -9,4 +9,4 @@ def text_preprocessing(text: str) -> str:
     return text
 
 if __name__ == "__main__":
-    print(text_preprocessing("Hello  !!  "))
+    print(text_preprocessing("   Hello  World !!  "))
