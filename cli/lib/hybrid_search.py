@@ -11,6 +11,7 @@ if str(BASE_DIR) not in sys.path:
     sys.path.append(str(BASE_DIR))
 
 from utils.hybrid_search_utils.normalize_score import normalize_score
+from utils.hybrid_search_utils.score_utils import hybrid_score, rrf_score
 
 
 class HybridSearch:
@@ -48,9 +49,6 @@ class HybridSearch:
 
         for i, normalized_semantic_score in enumerate(normalized_semantic_scores):
             semantic_results[i]["score"] = normalized_semantic_score
-
-        def hybrid_score(bm25_score, semantic_score):
-            return alpha * bm25_score + (1 - alpha) * semantic_score
 
         document_scores: dict[int, dict] = {}
 
@@ -94,5 +92,53 @@ class HybridSearch:
         return results[:limit]
 
     def rrf_search(self, query, k, limit=10):
-        # TODO: Implement RRF search logic
-        pass
+        bm25_results = self._bm25_search(query, limit*50)
+        semantic_results = self._semantic_search(query, limit*50)
+
+        document_ranks: dict[int, dict] = {}
+
+        for i, (doc_id, _) in enumerate(bm25_results):
+            bm25_rank = i + 1
+            rrf = rrf_score(bm25_rank, 0, k)
+            document_ranks[doc_id] = {
+                "document": self.document_map[doc_id],
+                "bm25_rank": bm25_rank,
+                "semantic_rank": 0,
+                "rrf_score": rrf,
+            }
+
+        for i, result in enumerate(semantic_results):
+            doc_id = result["id"]
+            semantic_rank = i + 1
+            rrf = rrf_score(0, semantic_rank, k)
+            if doc_id not in document_ranks:
+                document_ranks[doc_id] = {
+                    "document": self.document_map[doc_id],
+                    "bm25_rank": 0,
+                    "semantic_rank": semantic_rank,
+                    "rrf_score": rrf,
+                }
+            else:
+                document_ranks[doc_id]["semantic_rank"] = semantic_rank
+                document_ranks[doc_id]["rrf_score"] += rrf
+        
+        results: list[dict] = []
+
+        for doc_id, data in document_ranks.items():
+            bm25_rank = data["bm25_rank"]
+            semantic_rank = data["semantic_rank"]
+            rrf = data["rrf_score"]
+
+            results.append(
+                {
+                    "id": doc_id,
+                    "title": data["document"]["title"],
+                    "rrf_score": rrf,
+                    "bm25_rank": bm25_rank,
+                    "semantic_rank": semantic_rank,
+                    "document": data["document"]["description"],
+                }
+            )
+        
+        results.sort(key=lambda x: x["rrf_score"], reverse=True)
+        return results[:limit]

@@ -23,6 +23,12 @@ def main() -> None:
     weighted_search_parser.add_argument("--alpha", type=float, default=0.5, help="Alpha value for weighted search (default: 0.5)")
     weighted_search_parser.add_argument("--limit", type=int, default=5, help="Limit number of results (default: 5)")
 
+    # rrf_search
+    rrf_search_parser = subparser.add_parser("rrf_search", help="Perform RRF search")
+    rrf_search_parser.add_argument("query", type=str, help="Query string")
+    rrf_search_parser.add_argument("-k", type=int, default=60, help="K value for RRF search (default: 60)")
+    rrf_search_parser.add_argument("--limit", type=int, default=5, help="Limit number of results (default: 5)")
+
     args = parser.parse_args()
 
 
@@ -54,6 +60,20 @@ def main() -> None:
             
             for i,result in enumerate(results):
                 print(f"{i+1}. {result['title']}\nHybrid Score: {result['hybrid_score']:.4f}\nBM25: {result['bm25_score']:.4f}, Semantic: {result['semantic_score']:.4f}\n{result['document'][:50] + '...'}")
+
+        
+        case "rrf_search":
+            query = args.query
+            k = args.k
+            limit = args.limit
+
+            documents = load_movies()
+
+            hybrid_search = HybridSearch(documents)
+            results = hybrid_search.rrf_search(query, k, limit)
+            
+            for i,result in enumerate(results):
+                print(f"{i+1}. {result['title']}\nRRF Score: {result['rrf_score']}\nBM25 Rank: {result['bm25_rank']}, Semantic Rank: {result['semantic_rank']}\n{result['document'][:50] + '...'}")
 
         case _:
             parser.print_help()
