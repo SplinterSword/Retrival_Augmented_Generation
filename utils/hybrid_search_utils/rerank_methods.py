@@ -2,6 +2,7 @@ import os
 from time import sleep
 from dotenv import load_dotenv
 from google import genai
+import json
 
 load_dotenv()
 api_key = os.environ.get("GEMINI_API_KEY")
@@ -41,7 +42,38 @@ Score:"""
     
     return results
     
+def rerank_batch(results, query, documents, limit):
+
+    prompt = f"""Rank these movies by relevance to the search query.
+
+Query: "{query}"
+
+Movies:
+{results}
+
+Return ONLY the IDs in order of relevance (best match first). Return a valid JSON list, nothing else. For example:
+
+[75, 12, 34, 2, 1]
+"""
+    
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt
+    )
+
+    new_ranking = json.loads(response.text)
+ 
+    sorted_results = sorted(results, key=lambda x: new_ranking.index(int(x["id"])), reverse=True)
+
+    for i, result in enumerate(sorted_results):
+        result["rerank_score"] = i + 1
+    
+    results = sorted_results[:limit]
+    
+    return results
 
 def rerank(results, rerank_method, query, documents, limit):
     if rerank_method == "individual":
         return rerank_individual(results, query, documents, limit)
+    elif rerank_method == "batch":
+        return rerank_batch(results, query, documents, limit)
