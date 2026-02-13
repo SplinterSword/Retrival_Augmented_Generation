@@ -3,12 +3,63 @@ from time import sleep
 from dotenv import load_dotenv
 from google import genai
 import json
+import re
 from sentence_transformers import CrossEncoder
 
 load_dotenv()
 api_key = os.environ.get("GEMINI_API_KEY")
 
 client = genai.Client(api_key=api_key)
+
+
+def _parse_json_list_of_ids(text):
+    if not text:
+        return None
+
+    raw = text.strip()
+    if not raw:
+        return None
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        # Gemini may return markdown fenced JSON or extra prose around the list.
+        match = re.search(r"\[[\s\S]*\]", raw)
+        if not match:
+            return None
+        try:
+            parsed = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return None
+
+    if not isinstance(parsed, list):
+        return None
+
+    ids = []
+    for value in parsed:
+        try:
+            ids.append(int(value))
+        except (TypeError, ValueError):
+            continue
+
+    return ids if ids else None
+
+
+def _parse_float_score(text):
+    if not text:
+        return 0.0
+
+    raw = text.strip()
+    if not raw:
+        return 0.0
+
+    try:
+        return float(raw)
+    except ValueError:
+        match = re.search(r"-?\d+(?:\.\d+)?", raw)
+        if not match:
+            return 0.0
+        return float(match.group(0))
 
 def rerank_individual(results, query, documents, limit):
     
@@ -33,7 +84,7 @@ Score:"""
             contents=prompt
         )
         
-        result["rerank_score"] = float(response.text)
+        result["rerank_score"] = _parse_float_score(response.text)
         sleep(3)
 
     results.sort(key=lambda x: x["rerank_score"], reverse=True)
@@ -61,9 +112,15 @@ Return ONLY the IDs in order of relevance (best match first). Return a valid JSO
         contents=prompt
     )
 
-    new_ranking = json.loads(response.text)
- 
-    sorted_results = sorted(results, key=lambda x: new_ranking.index(int(x["id"])), reverse=True)
+    new_ranking = _parse_json_list_of_ids(response.text)
+    if not new_ranking:
+        return results[:limit]
+
+    ranking_map = {doc_id: rank for rank, doc_id in enumerate(new_ranking)}
+    sorted_results = sorted(
+        results,
+        key=lambda x: ranking_map.get(int(x["id"]), len(ranking_map))
+    )
 
     for i, result in enumerate(sorted_results):
         result["rerank_score"] = i + 1
