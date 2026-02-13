@@ -76,9 +76,11 @@ def main():
         relevant_results = [result for result in rrf_results if result["title"] in relevant_titles][:limit]
         
         precision_at_k = len(relevant_results) / limit
+        recall_at_k = len(relevant_results) / len(relevant_docs)
         print(f"k={limit}")
         print(f"\n- Query: {query}")
         print(f"  - Precision@{limit}: {precision_at_k:.4f}")
+        print(f"  - Recall@{limit}: {recall_at_k:.4f}")
         print(f"  - Retrieved: {', '.join([result['title'] for result in rrf_results][:limit])}")
         print(f"  - Relevant: {', '.join(relevant_docs)}")
 
