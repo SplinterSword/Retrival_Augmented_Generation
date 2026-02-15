@@ -4,6 +4,7 @@ from utils.keyword_seach_utils.text_preprocessing import text_preprocessing
 from pathlib import Path
 import pickle
 import math
+import sys
 from utils.keyword_seach_utils.search_utils import BM25_K1, BM25_B
 
 class InvertedIndex:
@@ -124,16 +125,16 @@ class InvertedIndex:
         cache_dir = BASE_DIR / 'cache'
         
         if not cache_dir.exists():
-            print("Cache directory not found. Building index...")
+            print("Cache directory not found. Building index...", file=sys.stderr)
             self.build(documents)
             self.save()
         
         if not (cache_dir / 'index.pkl').exists() or not (cache_dir / 'docmap.pkl').exists() or not (cache_dir / 'term_frequency.pkl').exists():
-            print("Cache files not found. Building index...")
+            print("Cache files not found. Building index...", file=sys.stderr)
             self.build(documents)
             self.save()
 
-        print("Loading index...")
+        print("Loading index...", file=sys.stderr)
         with open(cache_dir / 'index.pkl', 'rb') as f:
             self.index = pickle.load(f)
         with open(cache_dir / 'docmap.pkl', 'rb') as f:
@@ -142,5 +143,4 @@ class InvertedIndex:
             self.term_frequency = pickle.load(f)
         with open(cache_dir / 'doc_length.pkl', 'rb') as f:
             self.doc_length = pickle.load(f)
-        print("Index loaded.")
-
+        print("Index loaded.", file=sys.stderr)

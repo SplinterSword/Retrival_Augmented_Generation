@@ -68,7 +68,10 @@ class SemanticSearch:
                 self.embeddings = np.load(f)
 
             if self.embeddings.shape[0] != len(documents):
-                print("Embeddings shape does not match documents length, rebuilding embeddings")
+                print(
+                    "Embeddings shape does not match documents length, rebuilding embeddings",
+                    file=sys.stderr,
+                )
                 return self.build_embeddings(documents)
             return self.embeddings
         else:
@@ -178,7 +181,10 @@ class ChunkedSemanticSearch(SemanticSearch):
                 self.chunk_metadata = metadata
             
             if self.chunk_embeddings.shape[0] != len(self.chunk_metadata["chunks"]):
-                print("Embeddings shape does not match documents length, rebuilding embeddings")
+                print(
+                    "Embeddings shape does not match documents length, rebuilding embeddings",
+                    file=sys.stderr,
+                )
                 return self.build_chunk_embeddings(documents)
             return self.chunk_embeddings
         else:
