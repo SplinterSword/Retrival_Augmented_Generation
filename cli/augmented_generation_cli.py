@@ -1,6 +1,4 @@
 import argparse
-import subprocess
-import json
 from pathlib import Path
 import sys
 
@@ -8,7 +6,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from utils.augmented_utils.gemini import generate_response, generate_summary, generate_citations
+from utils.augmented_utils.gemini import generate_response, generate_summary, generate_citations, answer_question
+from utils.augmented_utils.rrf_search import do_rrf_search
 
 def main():
     parser = argparse.ArgumentParser(description="Retrieval Augmented Generation CLI")
@@ -24,6 +23,10 @@ def main():
     citation_parser = subparsers.add_parser("citations", help="Generate citations")
     citation_parser.add_argument("query", type=str, help="Search query for citations")
     citation_parser.add_argument("--limit", type=int, default=5, help="limit of documents")
+
+    question_parser = subparsers.add_parser("question", help="Answer a question")
+    question_parser.add_argument("question", type=str, help="Question to answer")
+    question_parser.add_argument("--limit", type=int, default=5, help="limit of documents")
 
     args = parser.parse_args()
 
@@ -41,28 +44,8 @@ def main():
                 "--limit=5",
                 "--json",
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.returncode != 0:
-                print(f"Error: {result.stderr}")
-                return
-
-            try:
-                search_results = json.loads(result.stdout)
-            except json.JSONDecodeError:
-                # Fallback for subprocesses that accidentally print logs before JSON.
-                lines = [line for line in result.stdout.splitlines() if line.strip()]
-                if not lines:
-                    print("Error parsing search results: empty output")
-                    if result.stderr:
-                        print(result.stderr)
-                    return
-                try:
-                    search_results = json.loads(lines[-1])
-                except json.JSONDecodeError:
-                    print("Error parsing search results:", result.stdout)
-                    if result.stderr:
-                        print(result.stderr)
-                    return
+            
+            search_results = do_rrf_search(cmd)
 
             print("Search Results:")
             for item in search_results:
@@ -87,28 +70,7 @@ def main():
                 f"--limit={limit}",
                 "--json",
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.returncode != 0:
-                print(f"Error: {result.stderr}")
-                return
-
-            try:
-                search_results = json.loads(result.stdout)
-            except json.JSONDecodeError:
-                # Fallback for subprocesses that accidentally print logs before JSON.
-                lines = [line for line in result.stdout.splitlines() if line.strip()]
-                if not lines:
-                    print("Error parsing search results: empty output")
-                    if result.stderr:
-                        print(result.stderr)
-                    return
-                try:
-                    search_results = json.loads(lines[-1])
-                except json.JSONDecodeError:
-                    print("Error parsing search results:", result.stdout)
-                    if result.stderr:
-                        print(result.stderr)
-                    return
+            search_results = do_rrf_search(cmd)
 
             print("Search Results:")
             for item in search_results:
@@ -133,28 +95,7 @@ def main():
                 f"--limit={limit}",
                 "--json",
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.returncode != 0:
-                print(f"Error: {result.stderr}")
-                return
-
-            try:
-                search_results = json.loads(result.stdout)
-            except json.JSONDecodeError:
-                # Fallback for subprocesses that accidentally print logs before JSON.
-                lines = [line for line in result.stdout.splitlines() if line.strip()]
-                if not lines:
-                    print("Error parsing search results: empty output")
-                    if result.stderr:
-                        print(result.stderr)
-                    return
-                try:
-                    search_results = json.loads(lines[-1])
-                except json.JSONDecodeError:
-                    print("Error parsing search results:", result.stdout)
-                    if result.stderr:
-                        print(result.stderr)
-                    return
+            search_results = do_rrf_search(cmd)
 
             print("Search Results:")
             for item in search_results:
@@ -164,8 +105,32 @@ def main():
             response = generate_citations(query, search_results)
             print("LLM Answer:")
             print(response)
-                
 
+        case "question":
+            question = args.question
+            limit = args.limit
+
+            cmd = [
+                "uv",
+                "run",
+                "cli/hybrid_search_cli.py",
+                "rrf_search",
+                question,
+                "--k=60",
+                f"--limit={limit}",
+                "--json",
+            ]
+            search_results = do_rrf_search(cmd)
+
+            print("Search Results:")
+            for item in search_results:
+                title = item.get("title", "Untitled")
+                print(f"  - {title}")
+
+            response = answer_question(question, search_results)
+            print("Answer:")
+            print(response)
+                
         case _:
             parser.print_help()
 
