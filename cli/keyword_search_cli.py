@@ -13,7 +13,7 @@ from utils.keyword_seach_utils.tfidf_utils import get_bm25_idf, bm25_tf_command
 from utils.keyword_seach_utils.text_preprocessing import text_preprocessing
 from lib.keyword_search import InvertedIndex
 from utils.keyword_seach_utils.search_utils import BM25_K1, BM25_B
-from utils.keyword_seach_utils.load_utils import load_movies
+from utils.cli_utils.file_loading import load_movies
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
@@ -62,9 +62,8 @@ def main() -> None:
         case "build":
             print("Building index...")
             index = InvertedIndex()
-            with open("data/movies.json", "r") as f:
-                data = json.load(f)
-            index.build(data["movies"])
+            movies = load_movies()
+            index.build(movies)
             index.save()
 
             print("Index built and saved.")
